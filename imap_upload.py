@@ -28,7 +28,7 @@ if sys.version_info < (3, 5):
 class MyOptionParser(OptionParser):
     def __init__(self):
         usage = "usage: python %prog [options] (MBOX|-r MBOX_FOLDER) [DEST]\n"\
-                "  MBOX UNIX style mbox file.\n"\
+                "  MBOX UNIX style mbox file, or file containing a single message.\n"\
                 "  MBOX_FOLDER folder containing subfolder trees of mbox files\n"\
                 "  DEST is imap[s]://[USER[:PASSWORD]@]HOST[:PORT][/BOX]\n"\
                 "  DEST has a priority over the options."
@@ -253,7 +253,7 @@ def upload(imap, box, src, err, time_fields):
     for i, msg in src.items():
         try:
             p.begin(msg)
-            r, r2 = imap.upload(box, msg.get_delivery_time(time_fields),
+            r, r2 = imap.upload(box, get_delivery_time(msg, time_fields),
                                 msg.as_string(), 3)
             if r != "OK":
                 raise Exception(r2[0]) # FIXME: Should use custom class
@@ -376,12 +376,6 @@ def get_delivery_time(self, fields):
     # All failed. Return current time.
     return time.time()
 
-# Directly attach get_delivery_time() to the mailbox.mboxMessage
-# as a method.
-# I want to use the factory parameter of mailbox.mbox()
-# but it seems not to work in Python 2.5.4.
-mailbox.mboxMessage.get_delivery_time = get_delivery_time
-
 
 class IMAPUploader:
     def __init__(self, host, port, ssl, box, user, password, retry):
@@ -484,10 +478,18 @@ def main(args=None):
 
             if(not recurse):
                 # Prepare source and error mbox
-                src = mailbox.mbox(src, create=False)
+                mbox = mailbox.mbox(src, create=False)
+                if next(mbox.iteritems(), None) is None:
+                    print("File does not appear to be mbox; assuming single message...")
+                    with open(src) as f:
+                        msg = email.message_from_file(f)
+                        if not msg:
+                            print("Could not parse as email message")
+                            return 1
+                        mbox.add(msg)
                 if err:
                     err = mailbox.mbox(err)
-                upload(uploader, options["box"], src, err, time_fields)
+                upload(uploader, options["box"], mbox, err, time_fields)
             else:
                 recursive_upload(uploader, "", src, err, time_fields, email_only_folders, separator)
 

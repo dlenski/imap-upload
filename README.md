@@ -55,6 +55,12 @@ There's an `--error` option so that you can store the failed messages in mbox fo
 python imap_upload.py --gmail --box imported --error Friends.err Friends.mbox
 ```
 
+You can also upload a single email message without mbox header, such as that produced by the "Download message" option in Gmail:
+
+```sh
+python imap_upload.py Some_single_message.eml
+```
+
 You can also recursively import mbox sub-folders using th `-r` option:
 
 ```
